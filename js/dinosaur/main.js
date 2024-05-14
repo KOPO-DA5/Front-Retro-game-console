@@ -10,7 +10,6 @@
   const coinDino = document.querySelector("#coin");
   game.classList.remove("hide");
 
-
   let dinoAccountValues = {
     score: 0,
     lines: 0,
@@ -79,7 +78,6 @@
       returnToInsert();
     }
   }
-
   function returnToSelection() {
     isClickSelectGameBtn = true;
     GlobalState.currentGame = "";
@@ -663,7 +661,7 @@
         scoreElement.classList.add("flash-effect");
 
         confetti({
-          particleCount: 130
+          particleCount: 130,
         });
       }
     });
