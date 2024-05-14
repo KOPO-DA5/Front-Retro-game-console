@@ -602,6 +602,24 @@
     sound.play();
   }
 
+  function cleanString(input) {
+    // 제어 문자 제거
+    return input.replace(/[\0\x08\x09\x1a\n\r"'\\%]/g, function (char) {
+      switch (char) {
+        case "\n":
+          return "\\n";
+        case "\r":
+          return "\\r";
+        case "\\":
+          return "\\\\";
+        case '"':
+          return '\\"';
+        default:
+          return "";
+      }
+    });
+  }
+
   // 점수 관련 함수들
   function checkHighScore(score) {
     const modal = document.getElementById("nameInputModal");
@@ -619,17 +637,44 @@
     });
 
     function submitScore() {
-      const name = input.value.trim();
-      if (name) {
-        const highScores =
-          JSON.parse(localStorage.getItem("dinoHighScores")) || [];
-        const newScore = { score, name };
-        saveHighScore(newScore, highScores, true); // 플래그로 새 점수 추가를 표시
-        modal.classList.add("hide");
-        input.value = "";
-      } else {
+      const rawName = input.value.trim();
+      if (!rawName) {
+        console.error("Name is required");
+        return;
       }
+      const name = cleanString(rawName);
+      const scoreData = { score, name };
+
+      console.log("Sending cleaned data:", JSON.stringify(scoreData));
+
+      fetch("http://localhost:8080/api/save", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(scoreData),
+      })
+        .then((response) => {
+          if (!response.ok) {
+            throw new Error(
+              "Network response was not ok: " + response.statusText
+            );
+          }
+          return response.json();
+        })
+        .then((data) => {
+          console.log("Score submitted successfully", data);
+          loadScores();
+        })
+        .catch((error) => {
+          console.error("Error submitting score:", error);
+        });
+
+      modal.classList.add("hide");
+      input.value = "";
+      input.focus(); // 유저가 다시 입력할 수 있도록 포커스
     }
+
     button.onclick = submitScore;
   }
 
@@ -643,23 +688,46 @@
     showRankingModal(isNewScore && score.score === highScores[0].score);
   }
 
-  function showRankingModal(isNewTopScore) {
+  function loadScores() {
+    console.log("in load Scores");
+    fetch("http://localhost:8080/api/load", {
+      method: "GET",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Network response was not ok " + response.statusText);
+        }
+        return response.json();
+      })
+      .then((scores) => {
+        console.log(scores);
+        showRankingModal(scores);
+      })
+      .catch((error) => console.error("Error loading scores:", error));
+  }
+
+  function showRankingModal(scores) {
     const modal = document.getElementById("ranking-modal");
     const rankingList = document.getElementById("dinoHighScores");
-    const scores = JSON.parse(localStorage.getItem("dinoHighScores")) || [];
+
+    // 점수가 없을 경우 처리
+    if (!scores.length) {
+      rankingList.innerHTML = "<li>No scores available</li>";
+      modal.classList.remove("hide");
+      return;
+    }
+
+    // 점수를 점수 높은 순으로 정렬
     scores.sort((a, b) => b.score - a.score);
 
     rankingList.innerHTML = "";
-
     scores.slice(0, 3).forEach((score, index) => {
       const scoreElement = document.createElement("li");
-      scoreElement.id = "li_marker";
       scoreElement.textContent = `${Math.round(score.score)} - ${score.name}`;
       rankingList.appendChild(scoreElement);
-      if (index === 0 && isNewTopScore) {
-        console.log(isNewTopScore);
+      if (index === 0 && score.score === scores[0].score) {
+        console.log("New top score!");
         scoreElement.classList.add("flash-effect");
-
         confetti({
           particleCount: 130,
         });
@@ -667,6 +735,8 @@
     });
 
     modal.classList.remove("hide");
+    // 키보드 이벤트 리스너를 추가하되, 이전 이벤트 리스너를 제거하여 중복 방지
+    document.removeEventListener("keydown", modalButtonSelection);
     document.addEventListener("keydown", modalButtonSelection);
   }
 
