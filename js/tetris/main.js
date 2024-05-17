@@ -196,6 +196,7 @@
 
     sound.pause();
     finishSound.play();
+
     checkHighScore(account.score);
 
     document.querySelector("#pause-btn").style.display = "none";
@@ -230,43 +231,21 @@
   }
 
   function showHighScores() {
-    const highScores = JSON.parse(localStorage.getItem("highScores")) || [];
-    const highScoreList = document.getElementById("highScores");
+    fetch("http://localhost:8080/api/loadtetris")
+      .then((response) => response.json())
+      .then((highScores) => {
+        highScores.sort((a, b) => b.score - a.score);
+        highScores.splice(5);
+        const highScoreList = document.getElementById("highScores");
 
-    highScoreList.innerHTML = highScores
-      .map(
-        (score) => `<li id="li-marker-tetris">${score.score} - ${score.name}`
-      )
-      .join("");
-  }
-
-  function checkHighScore(score) {
-    const highScores = JSON.parse(localStorage.getItem("highScores")) || [];
-
-    showNicknameScreen();
-    const nameInput = document.getElementById("nickname");
-    nameInput.value = "";
-    nameInput.focus(); // 입력창에 자동으로 포커스를 주기 위함
-    function handleNicknameFormSubmit(event) {
-      event.preventDefault();
-      const name = document.getElementById("nickname").value;
-      const newScore = { score, name };
-      saveHighScore(newScore, highScores);
-      hideNicknameScreen();
-      showHighScores();
-      leaderboardaddKeyListener();
-      showLeaderboard();
-    }
-    const nicknameForm = document.getElementById("nickname-form");
-    nicknameForm.addEventListener("submit", handleNicknameFormSubmit);
-  }
-
-  function saveHighScore(score, highScores) {
-    highScores.push(score);
-    highScores.sort((a, b) => b.score - a.score);
-    highScores.splice(5);
-
-    localStorage.setItem("highScores", JSON.stringify(highScores));
+        highScoreList.innerHTML = highScores
+          .map(
+            (score) =>
+              `<li id="li-marker-tetris">${score.score} - ${score.name}`
+          )
+          .join("");
+      })
+      .catch((error) => console.error("Error loading high scores:", error));
   }
 
   function showNicknameScreen() {
@@ -278,50 +257,126 @@
     const nicknameScreen = document.getElementById("nickname-screen");
     nicknameScreen.style.display = "none"; // 화면 숨김
   }
+
+  // fetch로 변경할 부분
+  function checkHighScore(score) {
+    fetch("http://localhost:8080/api/loadtetris", {
+      method: "GET",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Network response was not ok " + response.statusText);
+        }
+        return response.json();
+      })
+      .then((highScores) => {
+        console.log(highScores);
+        showNicknameScreen();
+        const nameInput = document.getElementById("nickname");
+        nameInput.value = "";
+        nameInput.focus(); // 입력창에 자동으로 포커스를 주기 위함
+
+        function handleNicknameFormSubmit(event) {
+          event.preventDefault();
+          const name = document.getElementById("nickname").value;
+          const newScore = { score, name };
+          // submitScore();
+          saveHighScore(newScore, highScores);
+          hideNicknameScreen();
+          showHighScores();
+          leaderboardaddKeyListener();
+          showLeaderboard();
+        }
+
+        const nicknameForm = document.getElementById("nickname-form");
+        nicknameForm.addEventListener("submit", handleNicknameFormSubmit);
+      })
+      .catch((error) => console.error("Error loading high scores:", error));
+  }
+
+  function saveHighScore(score, highScores) {
+    console.log("saveHighScore" + highScores);
+    highScores.push(score);
+    highScores.sort((a, b) => b.score - a.score);
+    highScores.splice(5);
+
+    fetch("http://localhost:8080/api/savetetris", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(score),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to save high scores");
+        }
+      })
+      .catch((error) => console.error("Error saving high scores:", error));
+  }
+
   function showLeaderboard() {
-    const highScores = JSON.parse(localStorage.getItem("highScores")) || [];
-    highScores.sort((a, b) => b.score - a.score); // 점수에 따라 내림차순 정렬
-    const leaderboardContainer = document.querySelector(
-      ".leaderboard-container"
-    );
-    const leaderboardList =
-      leaderboardContainer.querySelector("#leaderboard-list");
-    const gameAgainButton =
-      leaderboardContainer.querySelector("#game-again-button");
-    const gameSelectButton = leaderboardContainer.querySelector(
-      "#game-select-button"
-    );
+    console.log("in tetris load Scores");
+    fetch("http://localhost:8080/api/loadtetris", {
+      method: "GET",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Network response was not ok " + response.statusText);
+        }
+        return response.json();
+      })
+      .then((highScores) => {
+        console.log("들어옴");
+        console.log(highScores);
+        highScores.sort((a, b) => b.score - a.score); // 점수에 따라 내림차순 정렬
+        highScores.splice(5);
+        console.log("5개로 짜름");
+        console.log(highScores);
+        const leaderboardContainer = document.querySelector(
+          ".leaderboard-container"
+        );
+        const leaderboardList =
+          leaderboardContainer.querySelector("#leaderboard-list");
+        const gameAgainButton =
+          leaderboardContainer.querySelector("#game-again-button");
+        const gameSelectButton = leaderboardContainer.querySelector(
+          "#game-select-button"
+        );
 
-    leaderboardList.innerHTML = ""; // 기존 목록 초기화
-    const previousTopScore = highScores.length > 0 ? highScores[0].score : -1;
-    const currentTopScore = account.score;
+        leaderboardList.innerHTML = ""; // 기존 목록 초기화
+        const previousTopScore =
+          highScores.length > 0 ? highScores[0].score : -1;
+        const currentTopScore = account.score;
 
-    for (let i = 0; i < Math.min(highScores.length, 3); i++) {
-      const listItem = document.createElement("li");
-      listItem.id = "li_marker";
-      listItem.textContent = `${i + 1}. ${highScores[i].name} - ${
-        highScores[i].score
-      }`;
-      leaderboardList.appendChild(listItem);
-      if (currentTopScore >= previousTopScore) {
-        listItem.classList.add("confetti"); //축하 애니메이션
-      }
-    }
+        for (let i = 0; i < Math.min(highScores.length, 3); i++) {
+          const listItem = document.createElement("li");
+          listItem.id = "li_marker";
+          listItem.textContent = `${i + 1}. ${highScores[i].name} - ${
+            highScores[i].score
+          }`;
+          leaderboardList.appendChild(listItem);
+          if (currentTopScore >= previousTopScore) {
+            listItem.classList.add("confetti"); // 축하 애니메이션
+          }
+        }
 
-    leaderboardContainer.style.display = "flex"; // leaderboard 보이기
+        leaderboardContainer.style.display = "flex"; // leaderboard 보이기
 
-    gameAgainButton.addEventListener("click", () => {
-      // removeKeyListener();
-      restartGame();
-      hideLeaderboard();
-    });
+        gameAgainButton.addEventListener("click", () => {
+          // removeKeyListener();
+          restartGame();
+          hideLeaderboard();
+        });
 
-    gameSelectButton.addEventListener("click", () => {
-      // removeKeyListener();
-      resetGame();
-      hideLeaderboard();
-      returnToSelection();
-    });
+        gameSelectButton.addEventListener("click", () => {
+          // removeKeyListener();
+          resetGame();
+          hideLeaderboard();
+          returnToSelection();
+        });
+      })
+      .catch((error) => console.error("Error loading high scores:", error));
   }
 
   function hideLeaderboard() {
